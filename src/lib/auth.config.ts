@@ -1,4 +1,5 @@
 import type { NextAuthConfig } from "next-auth"
+import type { UserRole } from "@/lib/generated/prisma"
 
 export const authConfig = {
   pages: {
@@ -29,7 +30,7 @@ export const authConfig = {
     async session({ session, token }) {
       if (token) {
         session.user.id = token.id as string
-        session.user.role = token.role as string
+        session.user.role = token.role as UserRole
         session.user.branchId = token.branchId as string
         session.user.name = token.name as string
       }
