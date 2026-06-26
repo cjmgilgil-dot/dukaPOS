@@ -1,0 +1,559 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// BRANCH & USERS
+// ============================================
+
+model Branch {
+  id            String  @id @default(cuid())
+  name          String
+  address       String?
+  phone         String?
+  kraPIN        String?
+  etimsDeviceId String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  users          User[]
+  productStocks  ProductStock[]
+  stockMovements StockMovement[]
+  sales          Sale[]
+  shifts         Shift[]
+  purchaseOrders PurchaseOrder[]
+  quotations     Quotation[]
+  auditLogs      AuditLog[]
+  etimsQueues    EtimsQueue[]
+}
+
+enum UserRole {
+  OWNER
+  MANAGER
+  SUPERVISOR
+  CASHIER
+}
+
+model User {
+  id            String    @id @default(cuid())
+  branchId      String
+  name          String
+  email         String?   @unique
+  emailVerified DateTime?
+  passwordHash  String?
+  pinHash       String?
+  role          UserRole  @default(CASHIER)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  branch         Branch          @relation(fields: [branchId], references: [id])
+  sales          Sale[]
+  shifts         Shift[]
+  stockMovements StockMovement[]
+  auditLogs      AuditLog[]
+  quotations     Quotation[]
+
+  @@index([branchId])
+  @@index([email])
+}
+
+// ============================================
+// PRODUCTS & INVENTORY
+// ============================================
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String
+  parentId  String?
+  icon      String?
+  color     String?
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryHierarchy")
+  products Product[]
+
+  @@index([parentId])
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  sku         String   @unique
+  barcode     String?  @unique
+  name        String
+  description String?
+  categoryId  String?
+  kraHSCode   String?
+  taxRate     Decimal  @default(16.00)
+  isActive    Boolean  @default(true)
+  isDeleted   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  category Category?       @relation(fields: [categoryId], references: [id])
+  variants ProductVariant[]
+
+  @@index([categoryId])
+  @@index([name])
+  @@index([sku])
+  @@index([barcode])
+}
+
+enum UnitOfMeasure {
+  PIECE
+  METER
+  KILOGRAM
+  GRAM
+  LITER
+  MILLILITER
+  BOX
+  PACK
+  ROLL
+  PAIR
+  SET
+  DOZEN
+  SQUARE_METER
+  CUBIC_METER
+}
+
+model ProductVariant {
+  id               String        @id @default(cuid())
+  productId        String
+  name             String
+  unit             UnitOfMeasure @default(PIECE)
+  conversionFactor Decimal       @default(1)
+  price            Decimal
+  cost             Decimal       @default(0)
+  isDefault        Boolean       @default(false)
+  isActive         Boolean       @default(true)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  product        Product             @relation(fields: [productId], references: [id])
+  stocks         ProductStock[]
+  stockMovements StockMovement[]
+  saleItems      SaleItem[]
+  purchaseItems  PurchaseOrderItem[]
+  quotationItems QuotationItem[]
+  warranties     Warranty[]
+
+  @@index([productId])
+}
+
+model ProductStock {
+  id               String   @id @default(cuid())
+  productVariantId String
+  branchId         String
+  quantity         Decimal  @default(0)
+  reorderLevel     Decimal  @default(0)
+  binLocation      String?
+  updatedAt        DateTime @updatedAt
+
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+  branch         Branch         @relation(fields: [branchId], references: [id])
+
+  @@unique([productVariantId, branchId])
+  @@index([branchId])
+}
+
+enum StockMovementType {
+  SALE
+  RETURN
+  ADJUSTMENT
+  TRANSFER_IN
+  TRANSFER_OUT
+  PURCHASE
+  INITIAL
+}
+
+model StockMovement {
+  id               String            @id @default(cuid())
+  productVariantId String
+  branchId         String
+  type             StockMovementType
+  quantity         Decimal
+  reference        String?
+  notes            String?
+  userId           String?
+  createdAt        DateTime          @default(now())
+
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+  branch         Branch         @relation(fields: [branchId], references: [id])
+  user           User?          @relation(fields: [userId], references: [id])
+
+  @@index([productVariantId])
+  @@index([branchId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// ============================================
+// CUSTOMERS
+// ============================================
+
+enum CustomerType {
+  WALKIN
+  REGULAR
+  CONTRACTOR
+}
+
+model Customer {
+  id            String       @id @default(cuid())
+  name          String
+  phone         String?      @unique
+  email         String?
+  kraPIN        String?
+  type          CustomerType @default(REGULAR)
+  creditLimit   Decimal      @default(0)
+  creditBalance Decimal      @default(0)
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  sales      Sale[]
+  quotations Quotation[]
+
+  @@index([phone])
+  @@index([name])
+}
+
+// ============================================
+// SALES
+// ============================================
+
+enum SaleStatus {
+  COMPLETED
+  HELD
+  VOIDED
+  RETURNED
+}
+
+model Sale {
+  id                 String     @id @default(cuid())
+  branchId           String
+  userId             String
+  customerId         String?
+  saleNumber         String     @unique
+  subtotal           Decimal
+  taxTotal           Decimal
+  total              Decimal
+  discount           Decimal    @default(0)
+  discountReason     String?
+  status             SaleStatus @default(COMPLETED)
+  etimsInvoiceNumber String?
+  etimsQRCode        String?
+  shiftId            String?
+  holdNote           String?
+  voidReason         String?
+  voidedBy           String?
+  syncedAt           DateTime?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  branch     Branch      @relation(fields: [branchId], references: [id])
+  user       User        @relation(fields: [userId], references: [id])
+  customer   Customer?   @relation(fields: [customerId], references: [id])
+  shift      Shift?      @relation(fields: [shiftId], references: [id])
+  items      SaleItem[]
+  payments   Payment[]
+  etimsQueue EtimsQueue[]
+
+  @@index([branchId])
+  @@index([userId])
+  @@index([customerId])
+  @@index([shiftId])
+  @@index([createdAt])
+  @@index([status])
+}
+
+model SaleItem {
+  id               String   @id @default(cuid())
+  saleId           String
+  productVariantId String
+  quantity         Decimal
+  unitPrice        Decimal
+  discount         Decimal  @default(0)
+  lineTax          Decimal
+  lineTotal        Decimal
+  serialNumber     String?
+  createdAt        DateTime @default(now())
+
+  sale           Sale           @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+
+  warranty Warranty?
+
+  @@index([saleId])
+  @@index([productVariantId])
+}
+
+// ============================================
+// PAYMENTS
+// ============================================
+
+enum PaymentMethod {
+  CASH
+  MPESA_STK
+  MPESA_TILL
+  CARD
+  BANK_TRANSFER
+  CREDIT
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model Payment {
+  id                 String        @id @default(cuid())
+  saleId             String
+  method             PaymentMethod
+  amount             Decimal
+  reference          String?
+  mpesaReceiptNumber String?
+  mpesaPhoneNumber   String?
+  status             PaymentStatus @default(COMPLETED)
+  createdAt          DateTime      @default(now())
+
+  sale Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
+  @@index([method])
+}
+
+// ============================================
+// SHIFTS
+// ============================================
+
+enum ShiftStatus {
+  OPEN
+  CLOSED
+}
+
+model Shift {
+  id           String      @id @default(cuid())
+  branchId     String
+  userId       String
+  openingFloat Decimal     @default(0)
+  closingCash  Decimal?
+  expectedCash Decimal?
+  variance     Decimal?
+  varianceNote String?
+  status       ShiftStatus @default(OPEN)
+  openedAt     DateTime    @default(now())
+  closedAt     DateTime?
+
+  branch Branch @relation(fields: [branchId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+  sales  Sale[]
+
+  @@index([branchId])
+  @@index([userId])
+  @@index([status])
+}
+
+// ============================================
+// SUPPLIERS & PURCHASE ORDERS
+// ============================================
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  email     String?
+  address   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  purchaseOrders PurchaseOrder[]
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SENT
+  PARTIAL
+  RECEIVED
+  CANCELLED
+}
+
+model PurchaseOrder {
+  id          String              @id @default(cuid())
+  branchId    String
+  supplierId  String
+  poNumber    String              @unique
+  status      PurchaseOrderStatus @default(DRAFT)
+  totalAmount Decimal             @default(0)
+  notes       String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  branch   Branch              @relation(fields: [branchId], references: [id])
+  supplier Supplier            @relation(fields: [supplierId], references: [id])
+  items    PurchaseOrderItem[]
+
+  @@index([branchId])
+  @@index([supplierId])
+}
+
+model PurchaseOrderItem {
+  id               String   @id @default(cuid())
+  purchaseOrderId  String
+  productVariantId String
+  quantity         Decimal
+  unitCost         Decimal
+  receivedQuantity Decimal  @default(0)
+  createdAt        DateTime @default(now())
+
+  purchaseOrder  PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+
+  @@index([purchaseOrderId])
+}
+
+// ============================================
+// QUOTATIONS
+// ============================================
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  EXPIRED
+  CONVERTED
+}
+
+model Quotation {
+  id              String          @id @default(cuid())
+  branchId        String
+  userId          String
+  customerId      String?
+  quoteNumber     String          @unique
+  subtotal        Decimal
+  taxTotal        Decimal
+  total           Decimal
+  status          QuotationStatus @default(DRAFT)
+  validUntil      DateTime?
+  convertedSaleId String?
+  notes           String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  branch   Branch        @relation(fields: [branchId], references: [id])
+  user     User          @relation(fields: [userId], references: [id])
+  customer Customer?     @relation(fields: [customerId], references: [id])
+  items    QuotationItem[]
+
+  @@index([branchId])
+  @@index([customerId])
+}
+
+model QuotationItem {
+  id               String   @id @default(cuid())
+  quotationId      String
+  productVariantId String
+  quantity         Decimal
+  unitPrice        Decimal
+  lineTax          Decimal
+  lineTotal        Decimal
+  createdAt        DateTime @default(now())
+
+  quotation      Quotation      @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+
+  @@index([quotationId])
+}
+
+// ============================================
+// WARRANTY
+// ============================================
+
+model Warranty {
+  id             String   @id @default(cuid())
+  saleItemId     String   @unique
+  serialNumber   String
+  warrantyMonths Int
+  expiresAt      DateTime
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  saleItem SaleItem @relation(fields: [saleItemId], references: [id])
+
+  @@index([serialNumber])
+  @@index([expiresAt])
+}
+
+// ============================================
+// AUDIT & SYSTEM
+// ============================================
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  branchId  String?
+  action    String
+  entity    String
+  entityId  String
+  details   Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  user   User?   @relation(fields: [userId], references: [id])
+  branch Branch? @relation(fields: [branchId], references: [id])
+
+  @@index([userId])
+  @@index([branchId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
+enum EtimsQueueStatus {
+  PENDING
+  SENT
+  FAILED
+  RETRYING
+}
+
+model EtimsQueue {
+  id        String           @id @default(cuid())
+  saleId    String
+  payload   Json
+  status    EtimsQueueStatus @default(PENDING)
+  attempts  Int              @default(0)
+  lastError String?
+  createdAt DateTime         @default(now())
+  sentAt    DateTime?
+
+  sale Sale @relation(fields: [saleId], references: [id])
+
+  @@index([status])
+  @@index([saleId])
+}
+
+model SyncQueue {
+  id        String    @id @default(cuid())
+  entity    String
+  entityId  String
+  operation String
+  payload   Json
+  status    String    @default("PENDING")
+  createdAt DateTime  @default(now())
+  syncedAt  DateTime?
+
+  @@index([status])
+  @@index([entity, entityId])
+}
