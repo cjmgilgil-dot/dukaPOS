@@ -1,3 +1,4 @@
+import Script from "next/script"
 import { auth } from "@/lib/auth"
 import { POSHeaderActions } from "@/components/pos/POSHeaderActions"
 
@@ -33,6 +34,7 @@ export default async function POSLayout({
         </div>
       </header>
       <main className="h-[calc(100vh-3rem)]">{children}</main>
+      <Script src="https://js.paystack.co/v2/inline.js" strategy="afterInteractive" />
     </div>
   )
 }

@@ -27,7 +27,7 @@ interface Product {
 interface ProductGridProps {
   categories: Category[]
   branchId: string
-  onAddToCart: (product: Product, variant: Variant) => void
+  onAddToCart: (product: Product) => void
 }
 
 export function ProductGrid({ categories, branchId, onAddToCart }: ProductGridProps) {
@@ -88,7 +88,7 @@ export function ProductGrid({ categories, branchId, onAddToCart }: ProductGridPr
               return (
                 <button
                   key={p.id}
-                  onClick={() => !outOfStock && onAddToCart(p, defaultVariant)}
+                  onClick={() => !outOfStock && onAddToCart(p)}
                   disabled={outOfStock}
                   className="flex flex-col rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-left transition-colors hover:border-[var(--color-primary)] hover:bg-[var(--color-surface-alt)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
