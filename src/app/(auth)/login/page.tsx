@@ -16,7 +16,7 @@ export default function LoginPage() {
     setError("")
     setLoadingGoogle(true)
     try {
-      await signIn("google", { callbackUrl: "/dashboard" })
+      await signIn("google", { redirectTo: "/dashboard" })
     } catch {
       setError("Could not start Google sign-in. Try again.")
       setLoadingGoogle(false)
