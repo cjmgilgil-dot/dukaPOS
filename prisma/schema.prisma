@@ -42,10 +42,11 @@ enum UserRole {
 
 model User {
   id            String    @id @default(cuid())
-  branchId      String
+  branchId      String?
   name          String
   email         String?   @unique
   emailVerified DateTime?
+  image         String?
   passwordHash  String?
   pinHash       String?
   role          UserRole  @default(CASHIER)
@@ -53,7 +54,8 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  branch         Branch          @relation(fields: [branchId], references: [id])
+  branch         Branch?         @relation(fields: [branchId], references: [id])
+  accounts       Account[]
   sales          Sale[]
   shifts         Shift[]
   stockMovements StockMovement[]
@@ -62,6 +64,34 @@ model User {
 
   @@index([branchId])
   @@index([email])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
 }
 
 // ============================================
@@ -302,11 +332,10 @@ model SaleItem {
 
 enum PaymentMethod {
   CASH
-  MPESA_STK
-  MPESA_TILL
-  CARD
-  BANK_TRANSFER
-  CREDIT
+  MPESA         // Via Paystack mobile money
+  CARD          // Via Paystack
+  BANK_TRANSFER // Via Paystack
+  CREDIT        // Store credit / trade account
 }
 
 enum PaymentStatus {
@@ -314,6 +343,7 @@ enum PaymentStatus {
   COMPLETED
   FAILED
   CANCELLED
+  REFUNDED
 }
 
 model Payment {
@@ -322,7 +352,8 @@ model Payment {
   method             PaymentMethod
   amount             Decimal
   reference          String?
-  mpesaReceiptNumber String?
+  paystackReference  String?
+  paystackChannel    String?
   mpesaPhoneNumber   String?
   status             PaymentStatus @default(COMPLETED)
   createdAt          DateTime      @default(now())
@@ -331,6 +362,7 @@ model Payment {
 
   @@index([saleId])
   @@index([method])
+  @@index([paystackReference])
 }
 
 // ============================================
