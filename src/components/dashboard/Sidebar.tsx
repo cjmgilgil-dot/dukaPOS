@@ -5,6 +5,19 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { signOut } from "next-auth/react"
 import type { UserRole } from "@/lib/generated/prisma"
+import {
+  LayoutDashboard,
+  Layers,
+  Package,
+  Warehouse,
+  Receipt,
+  Users,
+  BarChart3,
+  Settings,
+  Monitor,
+  LogOut,
+  type LucideIcon,
+} from "lucide-react"
 
 interface SidebarUser {
   name: string
@@ -14,17 +27,18 @@ interface SidebarUser {
 interface NavItem {
   label: string
   href: string
-  icon: string
+  icon: LucideIcon
 }
 
 const navItems: NavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: "⊞" },
-  { label: "Products", href: "/dashboard/products", icon: "📦" },
-  { label: "Inventory", href: "/dashboard/inventory", icon: "🗄" },
-  { label: "Sales", href: "/dashboard/sales", icon: "🧾" },
-  { label: "Customers", href: "/dashboard/customers", icon: "👥" },
-  { label: "Reports", href: "/dashboard/reports", icon: "📊" },
-  { label: "Settings", href: "/dashboard/settings", icon: "⚙" },
+  { label: "Dashboard",  href: "/dashboard",            icon: LayoutDashboard },
+  { label: "Categories", href: "/dashboard/categories", icon: Layers },
+  { label: "Products",   href: "/dashboard/products",   icon: Package },
+  { label: "Inventory",  href: "/dashboard/inventory",  icon: Warehouse },
+  { label: "Sales",      href: "/dashboard/sales",      icon: Receipt },
+  { label: "Customers",  href: "/dashboard/customers",  icon: Users },
+  { label: "Reports",    href: "/dashboard/reports",    icon: BarChart3 },
+  { label: "Settings",   href: "/dashboard/settings",   icon: Settings },
 ]
 
 export function Sidebar({ user }: { user: SidebarUser }) {
@@ -38,7 +52,7 @@ export function Sidebar({ user }: { user: SidebarUser }) {
           href="/pos"
           className="flex h-10 items-center justify-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-primary-hover)]"
         >
-          <span>🖥</span>
+          <Monitor className="h-4 w-4" />
           Open POS Terminal
         </Link>
       </div>
@@ -51,19 +65,20 @@ export function Sidebar({ user }: { user: SidebarUser }) {
               item.href === "/dashboard"
                 ? pathname === "/dashboard"
                 : pathname.startsWith(item.href)
+            const Icon = item.icon
 
             return (
               <li key={item.href}>
                 <Link
                   href={item.href}
                   className={cn(
-                    "flex h-12 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors",
+                    "flex h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors",
                     isActive
                       ? "bg-orange-500/15 text-[var(--color-primary)]"
                       : "text-[var(--color-text-muted)] hover:bg-[var(--color-surface-alt)] hover:text-[var(--color-text)]"
                   )}
                 >
-                  <span className="text-base">{item.icon}</span>
+                  <Icon className="h-4 w-4 shrink-0" />
                   {item.label}
                 </Link>
               </li>
@@ -86,9 +101,10 @@ export function Sidebar({ user }: { user: SidebarUser }) {
           </div>
         </div>
         <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
-          className="w-full rounded-lg px-3 py-2 text-left text-sm text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-alt)] hover:text-[var(--color-danger)]"
+          onClick={() => signOut({ redirectTo: "/login" })}
+          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-alt)] hover:text-[var(--color-danger)]"
         >
+          <LogOut className="h-4 w-4 shrink-0" />
           Sign out
         </button>
       </div>

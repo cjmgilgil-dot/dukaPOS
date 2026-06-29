@@ -29,7 +29,7 @@ async function main() {
       name: "Shop Owner",
       email: "owner@dukapos.co.ke",
       password: "owner123",
-      pin: "1234",
+      pin: "123456",
       role: UserRole.OWNER,
     },
     {
@@ -37,7 +37,7 @@ async function main() {
       name: "Store Manager",
       email: "manager@dukapos.co.ke",
       password: "manager123",
-      pin: "5678",
+      pin: "567890",
       role: UserRole.MANAGER,
     },
     {
@@ -45,7 +45,7 @@ async function main() {
       name: "John Kamau",
       email: null,
       password: null,
-      pin: "1111",
+      pin: "111111",
       role: UserRole.CASHIER,
     },
     {
@@ -53,7 +53,7 @@ async function main() {
       name: "Mary Wanjiku",
       email: null,
       password: null,
-      pin: "2222",
+      pin: "222222",
       role: UserRole.CASHIER,
     },
   ]
@@ -64,7 +64,7 @@ async function main() {
 
     await db.user.upsert({
       where: { id: u.id },
-      update: {},
+      update: { passwordHash, pinHash },
       create: {
         id: u.id,
         branchId: branch.id,
@@ -81,19 +81,19 @@ async function main() {
 
   // ── Categories ────────────────────────────────────────────────────────────
   const categoryData = [
-    { id: "cat-electrical", name: "Electrical", icon: "⚡", color: "#f59e0b", sortOrder: 1 },
-    { id: "cat-plumbing", name: "Plumbing", icon: "🔧", color: "#3b82f6", sortOrder: 2 },
-    { id: "cat-tools", name: "Tools", icon: "🛠", color: "#8b5cf6", sortOrder: 3 },
-    { id: "cat-lighting", name: "Lighting", icon: "💡", color: "#eab308", sortOrder: 4 },
-    { id: "cat-electronics", name: "Electronics", icon: "📺", color: "#06b6d4", sortOrder: 5 },
-    { id: "cat-paint", name: "Paint", icon: "🎨", color: "#ec4899", sortOrder: 6 },
-    { id: "cat-hardware", name: "Hardware", icon: "🔩", color: "#6b7280", sortOrder: 7 },
+    { id: "cat-electrical", name: "Electrical", icon: "Zap",        color: "#f59e0b", sortOrder: 1 },
+    { id: "cat-plumbing",   name: "Plumbing",   icon: "Droplets",   color: "#3b82f6", sortOrder: 2 },
+    { id: "cat-tools",      name: "Tools",      icon: "Wrench",     color: "#8b5cf6", sortOrder: 3 },
+    { id: "cat-lighting",   name: "Lighting",   icon: "Lightbulb",  color: "#eab308", sortOrder: 4 },
+    { id: "cat-electronics",name: "Electronics",icon: "Tv2",        color: "#06b6d4", sortOrder: 5 },
+    { id: "cat-paint",      name: "Paint",      icon: "Paintbrush", color: "#ec4899", sortOrder: 6 },
+    { id: "cat-hardware",   name: "Hardware",   icon: "Bolt",       color: "#6b7280", sortOrder: 7 },
   ]
 
   for (const c of categoryData) {
     await db.category.upsert({
       where: { id: c.id },
-      update: {},
+      update: { icon: c.icon, color: c.color },
       create: c,
     })
   }

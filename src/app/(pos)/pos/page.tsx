@@ -1,12 +1,11 @@
 import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { PinLockScreen } from "@/components/pos/PinLockScreen"
+import { POSWorkspace } from "@/components/pos/POSWorkspace"
 
 export default async function POSPage() {
   const session = await auth()
 
-  // Use authenticated user's branch, or fall back to the first active branch
-  // so unauthenticated cashiers can still reach the PIN screen
   const branchId =
     session?.user?.branchId ||
     (
@@ -25,9 +24,23 @@ export default async function POSPage() {
     )
   }
 
+  if (!session?.user) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <PinLockScreen branchId={branchId} />
+      </div>
+    )
+  }
+
+  const categories = await db.category.findMany({
+    where: { isActive: true },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+  })
+
   return (
-    <div className="flex h-full items-center justify-center">
-      <PinLockScreen branchId={branchId} />
-    </div>
+    <POSWorkspace
+      categories={categories as any}
+      branchId={branchId}
+    />
   )
 }
