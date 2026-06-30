@@ -133,6 +133,7 @@ export function CheckoutModal({ isOpen, onClose, holdId }: CheckoutModalProps) {
 
         {completed ? (
           <SaleComplete
+            saleId={completed.id}
             saleNumber={completed.saleNumber}
             total={completed.total}
             changeAmount={completed.changeAmount}

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/utils"
 import { VoidSaleModal } from "./VoidSaleModal"
+import { ReceiptPrinter } from "@/components/pos/ReceiptPrinter"
 
 interface SaleRow {
   id: string
@@ -45,7 +46,7 @@ export function SalesTable({ sales }: SalesTableProps) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-[var(--color-border)] bg-[var(--color-surface-alt)]">
-              {["Sale #", "Customer", "Cashier", "Items", "Payment", "Total", "Status", ""].map(h => (
+              {["Sale #", "Customer", "Cashier", "Items", "Payment", "Total", "Status", "Actions"].map(h => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">
                   {h}
                 </th>
@@ -86,14 +87,17 @@ export function SalesTable({ sales }: SalesTableProps) {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    {sale.status === "COMPLETED" && (
-                      <button
-                        onClick={() => setVoidTarget(sale)}
-                        className="rounded-lg px-2 py-1 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-danger)]/10 hover:text-[var(--color-danger)] transition-colors"
-                      >
-                        Void
-                      </button>
-                    )}
+                    <div className="flex items-center gap-1">
+                      <ReceiptPrinter saleId={sale.id} variant="icon" label="Print receipt" />
+                      {sale.status === "COMPLETED" && (
+                        <button
+                          onClick={() => setVoidTarget(sale)}
+                          className="rounded-lg px-2 py-1 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-danger)]/10 hover:text-[var(--color-danger)] transition-colors"
+                        >
+                          Void
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )

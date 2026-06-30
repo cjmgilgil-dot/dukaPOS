@@ -395,6 +395,9 @@ export async function completeSale(
       const changeAmount = Math.max(0, totalPaid - adjustedSubtotal)
 
       return { saleId: sale.id, saleNumber, total: adjustedSubtotal, changeAmount }
+    }, {
+      maxWait: 10000, // wait up to 10s to acquire transaction (handles Neon cold starts)
+      timeout: 30000, // transaction must complete within 30s
     })
 
     revalidatePath("/dashboard/sales")

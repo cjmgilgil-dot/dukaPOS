@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react"
 import { CheckCircle, Clock } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
+import { ReceiptPrinter } from "@/components/pos/ReceiptPrinter"
 import Image from "next/image"
 
 interface SaleCompleteProps {
+  saleId: string
   saleNumber: string
   total: number
   changeAmount: number
@@ -16,6 +18,7 @@ interface SaleCompleteProps {
 }
 
 export function SaleComplete({
+  saleId,
   saleNumber,
   total,
   changeAmount,
@@ -27,14 +30,26 @@ export function SaleComplete({
   const [countdown, setCountdown] = useState(10)
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) { clearInterval(timer); onReset(); return 0 }
-        return prev - 1
-      })
-    }, 1000)
+    try { localStorage.setItem("dukapos:lastReceiptSaleId", saleId) } catch {}
+    const autoPrint = localStorage.getItem("dukapos:autoPrint") !== "false"
+    if (autoPrint) {
+      fetch(`/api/receipt/${saleId}`)
+        .then(r => r.text())
+        .then(html => import("@/lib/receipt/print-manager").then(m => m.printReceipt(html, { openDrawer: true })))
+        .catch(() => undefined)
+    }
+  }, [saleId])
+
+  // Decrement countdown every second — never call side-effects inside the updater
+  useEffect(() => {
+    const timer = setInterval(() => setCountdown(prev => Math.max(0, prev - 1)), 1000)
     return () => clearInterval(timer)
-  }, [onReset])
+  }, [])
+
+  // Trigger reset once countdown reaches zero
+  useEffect(() => {
+    if (countdown === 0) onReset()
+  }, [countdown, onReset])
 
   return (
     <div className="flex flex-col items-center gap-5 overflow-y-auto py-8 px-4">
@@ -98,12 +113,15 @@ export function SaleComplete({
         )}
       </div>
 
-      <button
-        onClick={onReset}
-        className="rounded-xl bg-[var(--color-primary)] px-8 py-3 text-sm font-bold text-white hover:bg-[var(--color-primary-hover)] transition-colors"
-      >
-        New Sale
-      </button>
+      <div className="flex gap-3">
+        <ReceiptPrinter saleId={saleId} openDrawer={false} label="Reprint" />
+        <button
+          onClick={onReset}
+          className="rounded-xl bg-[var(--color-primary)] px-8 py-2.5 text-sm font-bold text-white hover:bg-[var(--color-primary-hover)] transition-colors"
+        >
+          New Sale
+        </button>
+      </div>
 
       <p className="text-xs text-[var(--color-text-muted)]">Auto-resetting in {countdown}s</p>
     </div>
