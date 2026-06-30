@@ -1,0 +1,19 @@
+name: Process eTIMS Queue
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # Every 5 minutes
+  workflow_dispatch:         # Manual trigger from GitHub UI
+
+jobs:
+  process-queue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Process eTIMS queue
+        run: |
+          curl -X POST "${{ secrets.APP_URL }}/api/etims/process-queue" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --fail \
+            --silent \
+            --show-error

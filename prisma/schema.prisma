@@ -590,3 +590,12 @@ model SyncQueue {
   @@index([status])
   @@index([entity, entityId])
 }
+
+model EtimsCodeCache {
+  id         String   @id @default(cuid())
+  codeType   String
+  data       Json
+  lastSyncAt DateTime
+
+  @@unique([codeType])
+}

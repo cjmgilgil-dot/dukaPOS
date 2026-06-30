@@ -7,6 +7,10 @@ import { paystackRequest, generateReference, toKobo } from "@/lib/paystack"
 import bcrypt from "bcryptjs"
 import type { Prisma } from "@/lib/generated/prisma"
 import type { CartItem, CartCustomer } from "@/contexts/CartContext"
+import { etimsService } from "@/lib/etims"
+import { queueForEtims } from "@/lib/etims/queue"
+import { generateQRDataURL } from "@/lib/etims/qr"
+import type { SaleForEtims } from "@/lib/etims/types"
 
 type Ok<T = void> = { success: true; data: T }
 type Err = { success: false; error: string }
@@ -267,6 +271,9 @@ export interface CompletedSale {
   saleNumber: string
   total: number
   changeAmount: number
+  etimsInvoiceNumber?: string
+  etimsQRCode?: string
+  etimsQueued?: boolean
 }
 
 export async function completeSale(
@@ -392,6 +399,87 @@ export async function completeSale(
 
     revalidatePath("/dashboard/sales")
     revalidatePath("/dashboard")
+
+    // eTIMS — non-blocking, sale is already complete
+    let etimsInvoiceNumber: string | undefined
+    let etimsQRCode: string | undefined
+    let etimsQueued = false
+
+    try {
+      const branch = await db.branch.findUnique({ where: { id: branchId } })
+      const saleWithItems = await db.sale.findUnique({
+        where: { id: result.saleId },
+        include: {
+          items: { include: { productVariant: { include: { product: true } } } },
+          payments: true,
+          customer: true,
+        },
+      })
+
+      if (branch && saleWithItems) {
+        const saleForEtims: SaleForEtims = {
+          id: saleWithItems.id,
+          saleNumber: saleWithItems.saleNumber,
+          total: Number(saleWithItems.total),
+          taxTotal: Number(saleWithItems.taxTotal),
+          subtotal: Number(saleWithItems.subtotal),
+          discount: Number(saleWithItems.discount),
+          createdAt: saleWithItems.createdAt,
+          customerId: saleWithItems.customerId,
+          customer: saleWithItems.customer ? { name: saleWithItems.customer.name, kraPIN: saleWithItems.customer.kraPIN } : null,
+          items: saleWithItems.items.map(i => ({
+            id: i.id,
+            productVariantId: i.productVariantId,
+            quantity: Number(i.quantity),
+            unitPrice: Number(i.unitPrice),
+            discount: Number(i.discount),
+            lineTax: Number(i.lineTax),
+            lineTotal: Number(i.lineTotal),
+            productVariant: {
+              name: i.productVariant.name,
+              unit: i.productVariant.unit,
+              product: {
+                name: i.productVariant.product.name,
+                sku: i.productVariant.product.sku,
+                kraHSCode: i.productVariant.product.kraHSCode,
+                taxRate: Number(i.productVariant.product.taxRate),
+              },
+            },
+          })),
+          payments: saleWithItems.payments.map(p => ({ method: p.method, amount: Number(p.amount) })),
+        }
+
+        const branchForEtims = {
+          id: branch.id,
+          name: branch.name,
+          kraPIN: branch.kraPIN,
+          etimsDeviceId: branch.etimsDeviceId,
+        }
+
+        const etimsResult = await etimsService.submitInvoice(saleForEtims, branchForEtims)
+
+        if (etimsResult.success && etimsResult.cuInvoiceNumber) {
+          etimsInvoiceNumber = etimsResult.cuInvoiceNumber
+          const qrData = etimsResult.qrCodeData ?? etimsResult.cuInvoiceNumber
+          etimsQRCode = await generateQRDataURL(qrData).catch(() => undefined)
+
+          await db.sale.update({
+            where: { id: result.saleId },
+            data: { etimsInvoiceNumber, etimsQRCode: etimsResult.qrCodeData ?? null },
+          })
+        } else {
+          await queueForEtims(result.saleId, branchId, "SALES", { payload: saleForEtims }, etimsResult.error)
+          etimsQueued = true
+        }
+      }
+    } catch (err) {
+      console.error("[completeSale] eTIMS error (non-blocking):", err)
+      try {
+        await queueForEtims(result.saleId, branchId, "SALES", {}, String(err))
+      } catch { /* ignore secondary error */ }
+      etimsQueued = true
+    }
+
     return {
       success: true,
       data: {
@@ -399,6 +487,9 @@ export async function completeSale(
         saleNumber: result.saleNumber,
         total: result.total,
         changeAmount: result.changeAmount,
+        etimsInvoiceNumber,
+        etimsQRCode,
+        etimsQueued,
       },
     }
   } catch (err) {

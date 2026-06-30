@@ -16,6 +16,7 @@ import {
   Settings,
   Monitor,
   LogOut,
+  FileCheck,
   type LucideIcon,
 } from "lucide-react"
 
@@ -37,6 +38,7 @@ const navItems: NavItem[] = [
   { label: "Inventory",  href: "/dashboard/inventory",  icon: Warehouse },
   { label: "Sales",      href: "/dashboard/sales",      icon: Receipt },
   { label: "Customers",  href: "/dashboard/customers",  icon: Users },
+  { label: "eTIMS",      href: "/dashboard/etims",      icon: FileCheck },
   { label: "Reports",    href: "/dashboard/reports",    icon: BarChart3 },
   { label: "Settings",   href: "/dashboard/settings",   icon: Settings },
 ]

@@ -1,6 +1,7 @@
 import Script from "next/script"
 import { auth } from "@/lib/auth"
 import { POSHeaderActions } from "@/components/pos/POSHeaderActions"
+import { EtimsStatusPill } from "@/components/pos/EtimsStatusPill"
 
 export default async function POSLayout({
   children,
@@ -30,6 +31,7 @@ export default async function POSLayout({
             <div className="h-2 w-2 rounded-full bg-[var(--color-success)]" />
             <span className="text-xs text-[var(--color-text-muted)]">Online</span>
           </div>
+          <EtimsStatusPill />
           {user && <POSHeaderActions />}
         </div>
       </header>

@@ -32,6 +32,9 @@ interface CompletedSale {
   saleNumber: string
   total: number
   changeAmount: number
+  etimsInvoiceNumber?: string
+  etimsQRCode?: string
+  etimsQueued?: boolean
 }
 
 export function CheckoutModal({ isOpen, onClose, holdId }: CheckoutModalProps) {
@@ -133,6 +136,9 @@ export function CheckoutModal({ isOpen, onClose, holdId }: CheckoutModalProps) {
             saleNumber={completed.saleNumber}
             total={completed.total}
             changeAmount={completed.changeAmount}
+            etimsInvoiceNumber={completed.etimsInvoiceNumber}
+            etimsQRCode={completed.etimsQRCode}
+            etimsQueued={completed.etimsQueued}
             onReset={handleReset}
           />
         ) : (
