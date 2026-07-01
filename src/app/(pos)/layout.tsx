@@ -1,7 +1,10 @@
 import Script from "next/script"
 import { auth } from "@/lib/auth"
+import { db } from "@/lib/db"
 import { POSHeaderActions } from "@/components/pos/POSHeaderActions"
 import { EtimsStatusPill } from "@/components/pos/EtimsStatusPill"
+import { ShiftIndicator } from "@/components/pos/ShiftIndicator"
+import type { ActiveShift } from "@/lib/shift/types"
 
 export default async function POSLayout({
   children,
@@ -10,6 +13,26 @@ export default async function POSLayout({
 }) {
   const session = await auth()
   const user = session?.user
+
+  let initialShift: ActiveShift | null = null
+  if (user?.id && user.branchId) {
+    const shift = await db.shift.findFirst({
+      where: { userId: user.id, branchId: user.branchId, status: "OPEN" },
+    })
+    if (shift) {
+      const sales = await db.sale.findMany({
+        where: { shiftId: shift.id, status: "COMPLETED" },
+        include: { payments: { where: { method: "CASH" } } },
+      })
+      initialShift = {
+        id: shift.id,
+        openedAt: shift.openedAt,
+        openingFloat: Number(shift.openingFloat),
+        salesCount: sales.length,
+        cashTotal: sales.flatMap(s => s.payments).reduce((s, p) => s + Number(p.amount), 0),
+      }
+    }
+  }
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-[var(--color-bg)] text-[var(--color-text)]">
@@ -26,11 +49,17 @@ export default async function POSLayout({
             </>
           )}
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
             <div className="h-2 w-2 rounded-full bg-[var(--color-success)]" />
             <span className="text-xs text-[var(--color-text-muted)]">Online</span>
           </div>
+          {user && (
+            <ShiftIndicator
+              initialShift={initialShift}
+              cashierName={user.name ?? "Cashier"}
+            />
+          )}
           <EtimsStatusPill />
           {user && <POSHeaderActions />}
         </div>

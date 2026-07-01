@@ -11,6 +11,8 @@ import { etimsService } from "@/lib/etims"
 import { queueForEtims } from "@/lib/etims/queue"
 import { generateQRDataURL } from "@/lib/etims/qr"
 import type { SaleForEtims } from "@/lib/etims/types"
+import { computeShiftSummary } from "@/lib/shift/summary"
+import type { ActiveShift, ShiftSummary } from "@/lib/shift/types"
 
 type Ok<T = void> = { success: true; data: T }
 type Err = { success: false; error: string }
@@ -302,6 +304,12 @@ export async function completeSale(
       const adjustedSubtotal = Math.max(0, lineSubtotal - input.cartDiscountAmount)
       const taxTotal = adjustedSubtotal * 16 / 116
 
+      // Link to active shift if one is open
+      const openShiftRecord = await tx.shift.findFirst({
+        where: { userId, branchId, status: "OPEN" },
+        select: { id: true },
+      })
+
       // Create sale
       const sale = await tx.sale.create({
         data: {
@@ -315,6 +323,7 @@ export async function completeSale(
           discount: input.cartDiscountAmount,
           discountReason: input.discountReason ?? null,
           status: "COMPLETED",
+          shiftId: openShiftRecord?.id ?? null,
         },
       })
 
@@ -558,6 +567,133 @@ export async function verifyCardPayment(reference: string) {
 }
 
 function fromKobo(k: number) { return k / 100 }
+
+// ── Shift Management ──────────────────────────────────────────────────────────
+
+export async function openShift(
+  openingFloat: number
+): Promise<Result<ActiveShift>> {
+  const session = await auth()
+  if (!session?.user) return { success: false, error: "Unauthorized" }
+  const { id: userId, branchId } = session.user
+  if (!branchId) return { success: false, error: "No branch" }
+
+  const existing = await db.shift.findFirst({
+    where: { userId, branchId, status: "OPEN" },
+  })
+  if (existing) return { success: false, error: "You already have an open shift" }
+
+  const shift = await db.shift.create({
+    data: { branchId, userId, openingFloat, status: "OPEN" },
+  })
+
+  await db.auditLog.create({
+    data: {
+      userId,
+      branchId,
+      action: "SHIFT_OPENED",
+      entity: "Shift",
+      entityId: shift.id,
+      details: { openingFloat },
+    },
+  })
+
+  return {
+    success: true,
+    data: { id: shift.id, openedAt: shift.openedAt, openingFloat, salesCount: 0, cashTotal: 0 },
+  }
+}
+
+export async function getActiveShift(): Promise<Result<ActiveShift | null>> {
+  const session = await auth()
+  if (!session?.user) return { success: false, error: "Unauthorized" }
+  const { id: userId, branchId } = session.user
+  if (!branchId) return { success: true, data: null }
+
+  const shift = await db.shift.findFirst({
+    where: { userId, branchId, status: "OPEN" },
+  })
+  if (!shift) return { success: true, data: null }
+
+  const sales = await db.sale.findMany({
+    where: { shiftId: shift.id, status: "COMPLETED" },
+    include: { payments: { where: { method: "CASH" } } },
+  })
+  const cashTotal = sales
+    .flatMap(s => s.payments)
+    .reduce((sum, p) => sum + Number(p.amount), 0)
+
+  return {
+    success: true,
+    data: {
+      id: shift.id,
+      openedAt: shift.openedAt,
+      openingFloat: Number(shift.openingFloat),
+      salesCount: sales.length,
+      cashTotal,
+    },
+  }
+}
+
+export async function getShiftSummary(
+  shiftId: string
+): Promise<Result<ShiftSummary>> {
+  const session = await auth()
+  if (!session?.user) return { success: false, error: "Unauthorized" }
+
+  const shift = await db.shift.findUnique({ where: { id: shiftId } })
+  if (!shift) return { success: false, error: "Shift not found" }
+
+  const data = await computeShiftSummary(shiftId, Number(shift.openingFloat))
+  return { success: true, data }
+}
+
+export async function closeShift(input: {
+  shiftId: string
+  closingCash: number
+  varianceNote?: string
+  managerApprovalId?: string
+}): Promise<Result> {
+  const session = await auth()
+  if (!session?.user) return { success: false, error: "Unauthorized" }
+
+  const shift = await db.shift.findUnique({ where: { id: input.shiftId } })
+  if (!shift) return { success: false, error: "Shift not found" }
+  if (shift.status !== "OPEN") return { success: false, error: "Shift is not open" }
+  if (shift.userId !== session.user.id) return { success: false, error: "Not your shift" }
+
+  const summary = await computeShiftSummary(input.shiftId, Number(shift.openingFloat))
+  const variance = input.closingCash - summary.expectedCash
+
+  await db.shift.update({
+    where: { id: input.shiftId },
+    data: {
+      closingCash: input.closingCash,
+      expectedCash: summary.expectedCash,
+      variance,
+      varianceNote: input.varianceNote ?? null,
+      status: "CLOSED",
+      closedAt: new Date(),
+    },
+  })
+
+  await db.auditLog.create({
+    data: {
+      userId: input.managerApprovalId ?? session.user.id,
+      branchId: shift.branchId,
+      action: "SHIFT_CLOSED",
+      entity: "Shift",
+      entityId: input.shiftId,
+      details: { closingCash: input.closingCash, expectedCash: summary.expectedCash, variance },
+    },
+  })
+
+  revalidatePath("/dashboard/shifts")
+  revalidatePath("/dashboard")
+  return { success: true, data: undefined }
+}
+
+// ── Bank transfer ─────────────────────────────────────────────────────────────
 
 export async function initiateBankTransfer(
   amountKes: number,

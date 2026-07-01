@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import {
-  ShoppingCart, UserCircle, Clock, Tag, Percent, ChevronDown, ChevronUp,
+  ShoppingCart, UserCircle, Clock, Tag, Percent, ChevronDown, ChevronUp, AlertTriangle,
 } from "lucide-react"
 import { CartProvider, useCart, computeLineDiscountAmount, computeLineTotal } from "@/contexts/CartContext"
 import { ProductGrid } from "./ProductGrid"
@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils"
 interface POSWorkspaceProps {
   categories: Category[]
   branchId: string
+  hasActiveShift?: boolean
 }
 
 interface PendingProduct {
@@ -280,7 +281,7 @@ function POSCartPanel() {
   )
 }
 
-function POSWorkspaceInner({ categories, branchId }: POSWorkspaceProps) {
+function POSWorkspaceInner({ categories, branchId, hasActiveShift = true }: POSWorkspaceProps) {
   const { addItem } = useCart()
   const [pendingProduct, setPendingProduct] = useState<PendingProduct | null>(null)
 
@@ -332,16 +333,24 @@ function POSWorkspaceInner({ categories, branchId }: POSWorkspaceProps) {
   }
 
   return (
-    <div className="flex h-full">
-      <div className="flex flex-1 flex-col overflow-hidden p-4">
-        <ProductGrid
-          categories={categories}
-          branchId={branchId}
-          onAddToCart={handleProductClick}
-        />
+    <div className="flex h-full flex-col">
+      {!hasActiveShift && (
+        <div className="flex items-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-4 py-1.5 text-xs text-amber-600">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          No active shift — cash reconciliation unavailable
+        </div>
+      )}
+      <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 flex-col overflow-hidden p-4">
+          <ProductGrid
+            categories={categories}
+            branchId={branchId}
+            onAddToCart={handleProductClick}
+          />
       </div>
 
-      <POSCartPanel />
+        <POSCartPanel />
+      </div>
 
       <VariantPickerModal
         isOpen={pendingProduct !== null}
@@ -354,10 +363,10 @@ function POSWorkspaceInner({ categories, branchId }: POSWorkspaceProps) {
   )
 }
 
-export function POSWorkspace({ categories, branchId }: POSWorkspaceProps) {
+export function POSWorkspace({ categories, branchId, hasActiveShift }: POSWorkspaceProps) {
   return (
     <CartProvider>
-      <POSWorkspaceInner categories={categories} branchId={branchId} />
+      <POSWorkspaceInner categories={categories} branchId={branchId} hasActiveShift={hasActiveShift} />
     </CartProvider>
   )
 }

@@ -1,7 +1,8 @@
 import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { PinLockScreen } from "@/components/pos/PinLockScreen"
-import { POSWorkspace } from "@/components/pos/POSWorkspace"
+import { POSPageShell } from "@/components/pos/POSPageShell"
+import type { ActiveShift } from "@/lib/shift/types"
 
 export default async function POSPage() {
   const session = await auth()
@@ -32,15 +33,44 @@ export default async function POSPage() {
     )
   }
 
-  const categories = await db.category.findMany({
-    where: { isActive: true },
-    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-  })
+  const [categories, openShift, branch] = await Promise.all([
+    db.category.findMany({
+      where: { isActive: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+    db.shift.findFirst({
+      where: { userId: session.user.id, branchId, status: "OPEN" },
+    }),
+    db.branch.findUnique({ where: { id: branchId }, select: { name: true } }),
+  ])
+
+  const sales = openShift
+    ? await db.sale.findMany({
+        where: { shiftId: openShift.id, status: "COMPLETED" },
+        include: { payments: { where: { method: "CASH" } } },
+      })
+    : []
+  const cashTotal = sales
+    .flatMap(s => s.payments)
+    .reduce((sum, p) => sum + Number(p.amount), 0)
+
+  const initialShift: ActiveShift | null = openShift
+    ? {
+        id: openShift.id,
+        openedAt: openShift.openedAt,
+        openingFloat: Number(openShift.openingFloat),
+        salesCount: sales.length,
+        cashTotal,
+      }
+    : null
 
   return (
-    <POSWorkspace
-      categories={categories as any}
+    <POSPageShell
       branchId={branchId}
+      categories={categories}
+      initialShift={initialShift}
+      cashierName={session.user.name ?? "Cashier"}
+      branchName={branch?.name ?? "Branch"}
     />
   )
 }

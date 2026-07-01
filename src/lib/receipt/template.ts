@@ -1,4 +1,5 @@
 import type { ReceiptData } from "./builder"
+import type { ZReport } from "@/lib/shift/types"
 
 // Deterministic KES formatter — no toLocaleString, no locale fallback risk
 function fmt(amount: number): string {
@@ -156,5 +157,108 @@ export function generateReceiptHTML(data: ReceiptData, paperWidth: "80mm" | "58m
 <pre>${bodyText}</pre>
 ${qrBlock}
 </body>
+</html>`
+}
+
+export function generateZReportHTML(report: ZReport, paperWidth: "80mm" | "58mm"): string {
+  const colWidth = COL_WIDTH[paperWidth]
+  const pxWidth = paperWidth
+
+  const s = report.summary
+  const isX = report.isOpen
+
+  const dateStr = report.openedAt.toLocaleDateString("en-KE", {
+    day: "2-digit", month: "long", year: "numeric",
+  })
+  const openTime = report.openedAt.toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit", hour12: true })
+  const closeTime = report.closedAt
+    ? report.closedAt.toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit", hour12: true })
+    : "Open"
+
+  const rows: string[] = []
+
+  rows.push(divider(colWidth, "="))
+  const title = isX ? "X-REPORT (MID-SHIFT)" : "Z-REPORT"
+  const subtitle = isX ? "MID-SHIFT SNAPSHOT" : "END OF DAY SUMMARY"
+  rows.push(title.padStart(Math.floor((colWidth + title.length) / 2)))
+  rows.push(subtitle.padStart(Math.floor((colWidth + subtitle.length) / 2)))
+  rows.push(divider(colWidth, "="))
+
+  rows.push(`Branch:  ${report.branchName}`)
+  rows.push(`Cashier: ${report.cashierName}`)
+  rows.push(`Shift:   ${openTime} — ${closeTime} (${report.duration})`)
+  rows.push(`Date:    ${dateStr}`)
+  rows.push(divider(colWidth))
+
+  rows.push("SALES SUMMARY")
+  rows.push(line("  Total transactions:", String(s.salesCount), colWidth))
+  rows.push(line("  Completed:", String(s.completedCount), colWidth))
+  rows.push(line("  Voided:", String(s.voidedCount), colWidth))
+  rows.push(line("  Gross sales:", fmt(s.completedTotal), colWidth))
+  if (s.voidedTotal > 0) rows.push(line("  Voids:", `-${fmt(s.voidedTotal)}`, colWidth))
+  rows.push(line("  Net sales:", fmt(s.completedTotal - s.voidedTotal), colWidth))
+  rows.push(divider(colWidth))
+
+  rows.push("PAYMENT BREAKDOWN")
+  if (s.cashSales > 0)         rows.push(line("  Cash:", fmt(s.cashSales), colWidth))
+  if (s.mpesaTotal > 0)        rows.push(line("  M-Pesa:", fmt(s.mpesaTotal), colWidth))
+  if (s.cardTotal > 0)         rows.push(line("  Card:", fmt(s.cardTotal), colWidth))
+  if (s.bankTransferTotal > 0) rows.push(line("  Bank Transfer:", fmt(s.bankTransferTotal), colWidth))
+  if (s.creditTotal > 0)       rows.push(line("  Credit:", fmt(s.creditTotal), colWidth))
+  rows.push(divider(colWidth))
+
+  rows.push("TAX SUMMARY")
+  rows.push(line("  VAT (16%):", fmt(s.totalVAT), colWidth))
+  rows.push(divider(colWidth))
+
+  if (s.discountCount > 0) {
+    rows.push("DISCOUNTS")
+    rows.push(line("  Discounts given:", String(s.discountCount), colWidth))
+    rows.push(line("  Total discounts:", `-${fmt(s.totalDiscounts)}`, colWidth))
+    rows.push(divider(colWidth))
+  }
+
+  rows.push("CASH RECONCILIATION")
+  rows.push(line("  Opening float:", fmt(report.openingFloat), colWidth))
+  rows.push(line("  + Cash sales:", fmt(s.cashSales), colWidth))
+  if (s.cashRefunds > 0) rows.push(line("  - Cash refunds:", fmt(s.cashRefunds), colWidth))
+  rows.push(line("  = Expected:", fmt(s.expectedCash), colWidth))
+  if (report.countedCash !== undefined) {
+    rows.push(line("  Counted:", fmt(report.countedCash), colWidth))
+    const v = (report.variance ?? 0)
+    const varStr = v >= 0 ? `+${fmt(v)}` : `-${fmt(Math.abs(v))}`
+    rows.push(line("  Variance:", varStr, colWidth))
+    if (report.varianceNote) rows.push(`  Note: ${report.varianceNote}`)
+  }
+  rows.push(divider(colWidth))
+
+  if (report.topItems.length > 0) {
+    rows.push("TOP ITEMS")
+    report.topItems.slice(0, 10).forEach((item, i) => {
+      const label = `  ${i + 1}. ${item.productName}`.slice(0, colWidth - 14)
+      rows.push(line(label, fmt(item.revenue), colWidth))
+    })
+    rows.push(divider(colWidth))
+  }
+
+  rows.push(divider(colWidth, "="))
+  const footer = isX ? "X-Report — For internal use only" : "Official Z-Report — Retain for records"
+  rows.push(footer.padStart(Math.floor((colWidth + footer.length) / 2)))
+  rows.push(divider(colWidth, "="))
+
+  const bodyText = rows.join("\n")
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>${isX ? "X-Report" : "Z-Report"} — ${report.cashierName}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Courier New", Courier, monospace; font-size: 12px; line-height: 1.45; width: ${pxWidth}; padding: 6px 8px; color: #000; background: #fff; }
+  pre { white-space: pre; overflow: hidden; font-family: inherit; font-size: inherit; }
+  @media print { @page { size: ${pxWidth} auto; margin: 0; } body { padding: 4px 6px; } }
+</style>
+</head>
+<body><pre>${bodyText}</pre></body>
 </html>`
 }

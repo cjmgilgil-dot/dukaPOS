@@ -1,8 +1,9 @@
 import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import Link from "next/link"
-import { Package, Layers, AlertTriangle, Archive, TrendingUp, ShoppingCart } from "lucide-react"
+import { Package, Layers, AlertTriangle, Archive, TrendingUp, ShoppingCart, Clock } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
+import { shiftDuration } from "@/lib/shift/summary"
 
 export default async function DashboardPage() {
   const session = await auth()
@@ -13,7 +14,7 @@ export default async function DashboardPage() {
 
   const branchFilter = branchId ? { branchId } : {}
 
-  const [productCount, categoryCount, allStocks, todaySales, recentSales] = await Promise.all([
+  const [productCount, categoryCount, allStocks, todaySales, recentSales, todayShifts] = await Promise.all([
     db.product.count({ where: { isActive: true, isDeleted: false } }).catch(() => 0),
     db.category.count({ where: { isActive: true } }).catch(() => 0),
     db.productStock.findMany({ where: branchFilter, select: { quantity: true, reorderLevel: true } }).catch(() => []),
@@ -34,6 +35,11 @@ export default async function DashboardPage() {
         customer: { select: { name: true } },
         payments: { select: { method: true } },
       },
+    }).catch(() => []),
+    db.shift.findMany({
+      where: { ...branchFilter, openedAt: { gte: todayStart } },
+      include: { user: { select: { name: true } } },
+      orderBy: { openedAt: "desc" },
     }).catch(() => []),
   ])
 
@@ -132,6 +138,45 @@ export default async function DashboardPage() {
           </p>
         </div>
       </div>
+
+      {/* Today's shifts */}
+      {todayShifts.length > 0 && (
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
+          <div className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-4">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-[var(--color-text-muted)]" />
+              <h3 className="text-sm font-semibold text-[var(--color-text)]">Today&apos;s Shifts</h3>
+            </div>
+            <Link href="/dashboard/shifts" className="text-xs text-[var(--color-primary)] hover:underline">
+              View all
+            </Link>
+          </div>
+          <ul className="divide-y divide-[var(--color-border)]">
+            {todayShifts.map(shift => (
+              <li key={shift.id} className="flex items-center justify-between px-5 py-3">
+                <div className="flex items-center gap-3">
+                  <div className={`h-2 w-2 rounded-full ${shift.status === "OPEN" ? "bg-[var(--color-success)] animate-pulse" : "bg-[var(--color-text-muted)]"}`} />
+                  <div>
+                    <p className="text-sm font-medium text-[var(--color-text)]">{shift.user.name}</p>
+                    <p className="text-xs text-[var(--color-text-muted)]">{shiftDuration(shift.openedAt, shift.closedAt)}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  {shift.variance !== null && (
+                    <span className={`font-mono text-xs ${Math.abs(Number(shift.variance)) <= 100 ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"}`}>
+                      {Number(shift.variance) >= 0 ? "+" : ""}
+                      {Number(shift.variance).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </span>
+                  )}
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${shift.status === "OPEN" ? "bg-[var(--color-success)]/10 text-[var(--color-success)]" : "bg-[var(--color-surface-alt)] text-[var(--color-text-muted)]"}`}>
+                    {shift.status}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Recent sales */}
       <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
