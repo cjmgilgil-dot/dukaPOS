@@ -1,6 +1,35 @@
 import type { ReceiptData } from "./builder"
 import type { ZReport } from "@/lib/shift/types"
 
+export interface ReturnReceiptData {
+  returnNumber: string
+  originalSaleNumber: string
+  returnDate: Date
+  cashierName: string
+  approverName: string
+  customerName?: string
+  reason: string
+  reasonNote?: string
+  items: {
+    name: string
+    variantName: string
+    quantity: number
+    unitPrice: number
+    lineTotal: number
+    condition?: string
+  }[]
+  subtotal: number
+  taxTotal: number
+  total: number
+  refundMethodLabel: string
+  etimsCreditNoteNo?: string
+  etimsQRCodeDataURL?: string
+  shopName: string
+  shopAddress?: string
+  shopPhone?: string
+  shopKraPIN?: string
+}
+
 // Deterministic KES formatter — no toLocaleString, no locale fallback risk
 function fmt(amount: number): string {
   const [int, dec] = amount.toFixed(2).split(".")
@@ -218,10 +247,21 @@ export function generateZReportHTML(report: ZReport, paperWidth: "80mm" | "58mm"
     rows.push(divider(colWidth))
   }
 
+  if (s.returnCount > 0) {
+    rows.push("RETURNS")
+    rows.push(line("  Returns processed:", String(s.returnCount), colWidth))
+    rows.push(line("  Total returned:", `-${fmt(s.returnTotal)}`, colWidth))
+    if (s.cashReturns > 0)            rows.push(line("    Cash refunds:", `-${fmt(s.cashReturns)}`, colWidth))
+    if (s.storeCreditReturns > 0)     rows.push(line("    Store credit:", `-${fmt(s.storeCreditReturns)}`, colWidth))
+    if (s.originalPaymentReturns > 0) rows.push(line("    Original payment:", `-${fmt(s.originalPaymentReturns)}`, colWidth))
+    rows.push(divider(colWidth))
+  }
+
   rows.push("CASH RECONCILIATION")
   rows.push(line("  Opening float:", fmt(report.openingFloat), colWidth))
   rows.push(line("  + Cash sales:", fmt(s.cashSales), colWidth))
-  if (s.cashRefunds > 0) rows.push(line("  - Cash refunds:", fmt(s.cashRefunds), colWidth))
+  if (s.cashRefunds > 0)  rows.push(line("  - Cash refunds:", fmt(s.cashRefunds), colWidth))
+  if (s.cashReturns > 0)  rows.push(line("  - Cash returns:", fmt(s.cashReturns), colWidth))
   rows.push(line("  = Expected:", fmt(s.expectedCash), colWidth))
   if (report.countedCash !== undefined) {
     rows.push(line("  Counted:", fmt(report.countedCash), colWidth))
@@ -260,5 +300,122 @@ export function generateZReportHTML(report: ZReport, paperWidth: "80mm" | "58mm"
 </style>
 </head>
 <body><pre>${bodyText}</pre></body>
+</html>`
+}
+
+export function generateReturnReceiptHTML(data: ReturnReceiptData, paperWidth: "80mm" | "58mm"): string {
+  const colWidth = COL_WIDTH[paperWidth]
+  const pxWidth = paperWidth
+
+  const dateStr = data.returnDate.toLocaleDateString("en-KE", {
+    day: "2-digit", month: "short", year: "numeric",
+  })
+  const timeStr = data.returnDate.toLocaleTimeString("en-KE", {
+    hour: "2-digit", minute: "2-digit", hour12: true,
+  })
+
+  const rows: string[] = []
+
+  rows.push(divider(colWidth, "="))
+  const title = "CREDIT NOTE / RETURN"
+  rows.push(title.padStart(Math.floor((colWidth + title.length) / 2)))
+  rows.push(divider(colWidth, "="))
+
+  rows.push(data.shopName.toUpperCase())
+  if (data.shopAddress) rows.push(data.shopAddress)
+  if (data.shopPhone) rows.push(`Tel: ${data.shopPhone}`)
+  if (data.shopKraPIN) rows.push(`PIN: ${data.shopKraPIN}`)
+  rows.push(divider(colWidth))
+
+  rows.push(`Return:   ${data.returnNumber}`)
+  rows.push(`Original: ${data.originalSaleNumber}`)
+  rows.push(`Date:     ${dateStr}  ${timeStr}`)
+  rows.push(`Cashier:  ${data.cashierName}`)
+  rows.push(`Approved: ${data.approverName}`)
+  if (data.customerName) rows.push(`Customer: ${data.customerName}`)
+  rows.push(`Reason:   ${data.reason}`)
+  if (data.reasonNote) rows.push(`Note:     ${data.reasonNote}`)
+  rows.push(divider(colWidth))
+
+  rows.push("RETURNED ITEMS:")
+  rows.push(divider(colWidth))
+
+  for (const item of data.items) {
+    const itemName = item.variantName !== "Default"
+      ? `${item.name} (${item.variantName})`
+      : item.name
+    const conditionTag = item.condition && item.condition !== "Resaleable"
+      ? ` [${item.condition.toUpperCase()}]`
+      : ""
+    const displayName = itemName + conditionTag
+    for (let i = 0; i < displayName.length; i += colWidth) {
+      rows.push(displayName.slice(i, i + colWidth))
+    }
+    const qtyLine = `  ${item.quantity} x ${fmt(item.unitPrice)}`
+    rows.push(line(qtyLine, fmt(item.lineTotal), colWidth))
+  }
+
+  rows.push(divider(colWidth))
+  rows.push(line("Return Subtotal:", fmt(data.subtotal), colWidth))
+  rows.push(line("VAT Refund (16%):", fmt(data.taxTotal), colWidth))
+  rows.push(divider(colWidth, "="))
+  rows.push(line("REFUND TOTAL:", fmt(data.total), colWidth))
+  rows.push(divider(colWidth, "="))
+
+  rows.push("")
+  rows.push(`Refund Method: ${data.refundMethodLabel}`)
+  rows.push(divider(colWidth))
+
+  if (data.etimsCreditNoteNo) {
+    rows.push("KRA eTIMS CREDIT NOTE")
+    rows.push(`CUIN: ${data.etimsCreditNoteNo}`)
+    rows.push(divider(colWidth))
+  }
+
+  const centerMsg = "This is an official credit note"
+  rows.push(centerMsg.padStart(Math.floor((colWidth + centerMsg.length) / 2)))
+  rows.push(divider(colWidth, "="))
+
+  const bodyText = rows.join("\n")
+
+  const qrBlock = data.etimsQRCodeDataURL
+    ? `<div style="text-align:center;margin:8px 0;">
+        <img src="${data.etimsQRCodeDataURL}" width="120" height="120" alt="KRA QR" style="display:inline-block;" />
+        <div style="font-size:9px;margin-top:4px;">Scan to verify with KRA</div>
+       </div>`
+    : ""
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Return ${data.returnNumber}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Courier New", Courier, monospace;
+    font-size: 12px;
+    line-height: 1.45;
+    width: ${pxWidth};
+    padding: 6px 8px;
+    color: #000;
+    background: #fff;
+  }
+  pre {
+    white-space: pre;
+    overflow: hidden;
+    font-family: inherit;
+    font-size: inherit;
+  }
+  @media print {
+    @page { size: ${pxWidth} auto; margin: 0; }
+    body { padding: 4px 6px; }
+  }
+</style>
+</head>
+<body>
+<pre>${bodyText}</pre>
+${qrBlock}
+</body>
 </html>`
 }

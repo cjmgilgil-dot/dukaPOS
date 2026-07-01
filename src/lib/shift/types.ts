@@ -23,6 +23,11 @@ export interface ShiftSummary {
   totalVAT: number
   totalDiscounts: number
   discountCount: number
+  returnCount: number
+  returnTotal: number
+  cashReturns: number
+  storeCreditReturns: number
+  originalPaymentReturns: number
 }
 
 export interface ZReportTopItem {

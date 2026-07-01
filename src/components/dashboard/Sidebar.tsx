@@ -18,6 +18,7 @@ import {
   LogOut,
   FileCheck,
   Clock,
+  RotateCcw,
   type LucideIcon,
 } from "lucide-react"
 
@@ -38,6 +39,7 @@ const navItems: NavItem[] = [
   { label: "Products",   href: "/dashboard/products",   icon: Package },
   { label: "Inventory",  href: "/dashboard/inventory",  icon: Warehouse },
   { label: "Sales",      href: "/dashboard/sales",      icon: Receipt },
+  { label: "Returns",    href: "/dashboard/returns",    icon: RotateCcw },
   { label: "Shifts",     href: "/dashboard/shifts",     icon: Clock },
   { label: "Customers",  href: "/dashboard/customers",  icon: Users },
   { label: "eTIMS",      href: "/dashboard/etims",      icon: FileCheck },

@@ -2,9 +2,10 @@
 
 import { useState } from "react"
 import {
-  ShoppingCart, UserCircle, Clock, Tag, Percent, ChevronDown, ChevronUp, AlertTriangle,
+  ShoppingCart, UserCircle, Clock, Tag, Percent, ChevronDown, ChevronUp, AlertTriangle, RotateCcw, X,
 } from "lucide-react"
 import { CartProvider, useCart, computeLineDiscountAmount, computeLineTotal } from "@/contexts/CartContext"
+import { ReturnFlow } from "@/components/pos/returns/ReturnFlow"
 import { ProductGrid } from "./ProductGrid"
 import { VariantPickerModal } from "@/app/(pos)/pos/components/VariantPickerModal"
 import { QuantityKeypad } from "@/app/(pos)/pos/components/QuantityKeypad"
@@ -39,7 +40,7 @@ interface PendingProduct {
 }
 
 function POSCartPanel() {
-  const { items, cartDiscount, customer, totals, setQty, clearCart } = useCart()
+  const { items, cartDiscount, customer, exchangeCredit, totals, setQty, clearCart, setCustomer, setExchangeCredit } = useCart()
   const [expandedLine, setExpandedLine] = useState<string | null>(null)
   const [qtyEditItem, setQtyEditItem] = useState<string | null>(null)
   const [cartDiscountOpen, setCartDiscountOpen] = useState(false)
@@ -47,6 +48,7 @@ function POSCartPanel() {
   const [heldOpen, setHeldOpen] = useState(false)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [holding, setHolding] = useState(false)
+  const [returnFlowOpen, setReturnFlowOpen] = useState(false)
 
   const itemCount = items.reduce((s, i) => s + i.qty, 0)
 
@@ -106,6 +108,14 @@ function POSCartPanel() {
             >
               <Clock className="h-4 w-4" />
             </button>
+            {/* Returns */}
+            <button
+              onClick={() => setReturnFlowOpen(true)}
+              className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-surface-alt)] transition-colors"
+              title="Process return"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </button>
           </div>
         </div>
 
@@ -122,6 +132,26 @@ function POSCartPanel() {
                 <span className="ml-auto text-[var(--color-text-muted)]">{customer.phone}</span>
               )}
             </button>
+          </div>
+        )}
+
+        {/* Exchange credit banner */}
+        {exchangeCredit && (
+          <div className="border-b border-[var(--color-surface-alt)] px-3 py-2">
+            <div className="flex items-center justify-between rounded-lg bg-[var(--color-success)]/10 px-2.5 py-1.5 text-xs">
+              <span className="text-[var(--color-success)] font-medium">Return credit · {exchangeCredit.returnNumber}</span>
+              <div className="flex items-center gap-2">
+                <span className="font-mono font-semibold text-[var(--color-success)]">
+                  KES {exchangeCredit.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </span>
+                <button
+                  onClick={() => setExchangeCredit(null)}
+                  className="text-[var(--color-text-muted)] hover:text-[var(--color-danger)] transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -277,6 +307,16 @@ function POSCartPanel() {
       <CustomerSearchModal isOpen={customerOpen} onClose={() => setCustomerOpen(false)} />
       <HeldSalesModal isOpen={heldOpen} onClose={() => setHeldOpen(false)} />
       <CheckoutModal isOpen={checkoutOpen} onClose={() => setCheckoutOpen(false)} />
+      {returnFlowOpen && (
+        <ReturnFlow
+          onClose={() => setReturnFlowOpen(false)}
+          onStartExchange={(customer, credit, returnNumber) => {
+            setCustomer(customer)
+            setExchangeCredit({ amount: credit, returnNumber })
+            setReturnFlowOpen(false)
+          }}
+        />
+      )}
     </>
   )
 }

@@ -84,10 +84,16 @@ interface AddItemArgs {
   taxRate: number
 }
 
+export interface ExchangeCredit {
+  amount: number
+  returnNumber: string
+}
+
 interface CartContextValue {
   items: CartItem[]
   cartDiscount: CartDiscount
   customer: CartCustomer | null
+  exchangeCredit: ExchangeCredit | null
   totals: CartTotals
   addItem(args: AddItemArgs): void
   removeItem(variantId: string): void
@@ -97,6 +103,7 @@ interface CartContextValue {
   setCartDiscount(type: "percent" | "fixed", value: number, approvedBy?: string): void
   clearCartDiscount(): void
   setCustomer(customer: CartCustomer | null): void
+  setExchangeCredit(credit: ExchangeCredit | null): void
   clearCart(): void
   loadItems(items: CartItem[], customer?: CartCustomer | null): void
 }
@@ -107,6 +114,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([])
   const [cartDiscount, setCartDiscountState] = useState<CartDiscount>({ type: "percent", value: 0 })
   const [customer, setCustomer] = useState<CartCustomer | null>(null)
+  const [exchangeCredit, setExchangeCredit] = useState<ExchangeCredit | null>(null)
 
   const totals = useMemo(() => computeTotals(items, cartDiscount), [items, cartDiscount])
 
@@ -169,6 +177,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems([])
     setCartDiscountState({ type: "percent", value: 0 })
     setCustomer(null)
+    setExchangeCredit(null)
   }, [])
 
   const loadItems = useCallback((newItems: CartItem[], newCustomer?: CartCustomer | null) => {
@@ -179,9 +188,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <CartContext.Provider value={{
-      items, cartDiscount, customer, totals,
+      items, cartDiscount, customer, exchangeCredit, totals,
       addItem, removeItem, setQty, setLineDiscount, overridePrice,
-      setCartDiscount, clearCartDiscount, setCustomer, clearCart, loadItems,
+      setCartDiscount, clearCartDiscount, setCustomer, setExchangeCredit, clearCart, loadItems,
     }}>
       {children}
     </CartContext.Provider>

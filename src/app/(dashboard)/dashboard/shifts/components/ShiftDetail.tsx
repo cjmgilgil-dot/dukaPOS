@@ -128,8 +128,14 @@ export function ShiftDetail({ report, sales, shiftId, cashierName, isOpen }: Shi
             </div>
             {s.cashRefunds > 0 && (
               <div className="flex justify-between">
-                <span className="text-[var(--color-text-muted)]">- Cash refunds</span>
+                <span className="text-[var(--color-text-muted)]">- Cash refunds (voids)</span>
                 <span className="font-mono text-[var(--color-text)]">{fmtKes(s.cashRefunds)}</span>
+              </div>
+            )}
+            {s.cashReturns > 0 && (
+              <div className="flex justify-between">
+                <span className="text-[var(--color-text-muted)]">- Cash returns</span>
+                <span className="font-mono text-[var(--color-text)]">{fmtKes(s.cashReturns)}</span>
               </div>
             )}
             <div className="flex justify-between border-t border-[var(--color-border)] pt-2 font-semibold">
@@ -156,6 +162,27 @@ export function ShiftDetail({ report, sales, shiftId, cashierName, isOpen }: Shi
           </div>
         </div>
       </div>
+
+      {/* Returns */}
+      {s.returnCount > 0 && (
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+          <h3 className="mb-3 text-sm font-semibold text-[var(--color-text)]">Returns</h3>
+          <div className="space-y-2 text-sm">
+            {[
+              { label: "Returns processed", value: String(s.returnCount) },
+              { label: "Total returned", value: `-${fmtKes(s.returnTotal)}`, danger: true },
+              ...(s.cashReturns > 0 ? [{ label: "  Cash refunds", value: `-${fmtKes(s.cashReturns)}` }] : []),
+              ...(s.storeCreditReturns > 0 ? [{ label: "  Store credit", value: `-${fmtKes(s.storeCreditReturns)}` }] : []),
+              ...(s.originalPaymentReturns > 0 ? [{ label: "  Original payment", value: `-${fmtKes(s.originalPaymentReturns)}` }] : []),
+            ].map(r => (
+              <div key={r.label} className="flex justify-between">
+                <span className="text-[var(--color-text-muted)]">{r.label}</span>
+                <span className={`font-mono ${"danger" in r && r.danger ? "text-[var(--color-danger)]" : "text-[var(--color-text)]"}`}>{r.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Top items */}
       {report.topItems.length > 0 && (
